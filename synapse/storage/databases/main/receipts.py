@@ -26,7 +26,7 @@ from typing import (
     cast,
 )
 
-from synapse.api.constants import EduTypes
+from synapse.api.constants import EduTypes, ReceiptTypes
 from synapse.api.errors import StoreError
 from synapse.replication.slave.storage._slaved_id_tracker import SlavedIdTracker
 from synapse.replication.tcp.streams import ReceiptsStream
@@ -716,6 +716,19 @@ class ReceiptsWorkerStore(StreamWorkerStore, SQLBaseStore):
             # (user_id, room_id, receipt_type), so no need to lock
             lock=False,
         )
+
+        if stream_ordering is not None and receipt_type in (
+            ReceiptTypes.READ,
+            ReceiptTypes.READ_PRIVATE,
+        ):
+            sql = """
+                DELETE FROM event_push_actions
+                WHERE room_id = ?
+                AND user_id = ?
+                AND stream_ordering <= ?
+                AND highlight = 0
+            """
+            txn.execute(sql, (room_id, user_id, stream_ordering))
 
         return rx_ts
 
