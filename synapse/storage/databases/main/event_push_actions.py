@@ -591,7 +591,7 @@ class EventPushActionsWorkerStore(ReceiptsWorkerStore, StreamWorkerStore, SQLBas
         args.extend((user_id,))
         txn.execute(sql, args)
         return {
-            room_id: latest_stream_ordering
+            room_id: (latest_stream_ordering or 0)
             for room_id, latest_stream_ordering in txn.fetchall()
         }
 
