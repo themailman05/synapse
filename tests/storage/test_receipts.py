@@ -312,7 +312,12 @@ class ReceiptTestCase(HomeserverTestCase):
         # event_stream_ordering column.
         self.get_success(
             self.store.insert_receipt(
-                self.room_id1, ReceiptTypes.READ, OUR_USER_ID, [event.event_id], None, {}
+                self.room_id1,
+                ReceiptTypes.READ,
+                OUR_USER_ID,
+                [event.event_id],
+                None,
+                {},
             )
         )
 
