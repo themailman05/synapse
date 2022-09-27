@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-from synapse.api.constants import ReceiptTypes
+from synapse.api.constants import EventTypes, ReceiptTypes
 from synapse.types import UserID, create_requester
 
 from tests.test_utils.event_injection import create_event
@@ -290,3 +290,45 @@ class ReceiptTestCase(HomeserverTestCase):
             )
         )
         self.assertEqual(res, event2_1_id)
+
+    def test_get_last_receipt_no_event_for_user(self) -> None:
+        # First, create an event but don't send it
+        event_creator = self.hs.get_event_creation_handler()
+        requester = create_requester(OUR_USER_ID)
+
+        event, context = self.get_success(
+            event_creator.create_event(
+                requester,
+                {
+                    "type": EventTypes.Message,
+                    "room_id": self.room_id1,
+                    "sender": OUR_USER_ID,
+                    "content": {"body": "hello world", "msgtype": "m.text"},
+                },
+            )
+        )
+
+        # Send a receipt for the unsent event, this will insert into receipts without any
+        # event_stream_ordering column.
+        self.get_success(
+            self.store.insert_receipt(
+                self.room_id1, ReceiptTypes.READ, OUR_USER_ID, [event.event_id], None, {}
+            )
+        )
+
+        # Send the event and then check the `get_last_receipt_for_user_txn` transaction
+        # works as expected.
+        self.get_success(
+            event_creator.handle_new_client_event(requester, event, context)
+        )
+        result = self.get_success(
+            self.store.db_pool.runInteraction(
+                "test",
+                self.store.get_last_receipt_for_user_txn,
+                OUR_USER_ID,
+                self.room_id1,
+                [ReceiptTypes.READ],
+            )
+        )
+        self.assertEqual(result[0], event.event_id)
+        self.assertIsNotNone(result[1])
