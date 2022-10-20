@@ -1617,7 +1617,7 @@ test = ["zope.i18nmessageid", "zope.testing", "zope.testrunner"]
 
 [extras]
 all = ["matrix-synapse-ldap3", "psycopg2", "psycopg2cffi", "psycopg2cffi-compat", "pysaml2", "authlib", "lxml", "sentry-sdk", "jaeger-client", "opentracing", "txredisapi", "hiredis", "jump-consistent-hash", "Pympler"]
-cache_memory = ["Pympler"]
+cache-memory = ["Pympler"]
 jwt = ["authlib"]
 matrix-synapse-ldap3 = ["matrix-synapse-ldap3"]
 oidc = ["authlib"]
@@ -1628,7 +1628,7 @@ saml2 = ["pysaml2"]
 sentry = ["sentry-sdk"]
 systemd = ["systemd-python"]
 test = ["parameterized", "idna"]
-url_preview = ["lxml"]
+url-preview = ["lxml"]
 
 [metadata]
 lock-version = "1.1"
