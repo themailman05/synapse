@@ -42,6 +42,7 @@ from synapse.logging.opentracing import SynapseTags, log_kv, set_tag, start_acti
 from synapse.push.clientformat import format_push_rules_for_user
 from synapse.storage.databases.main.event_push_actions import RoomNotifCounts
 from synapse.storage.roommember import MemberSummary
+from synapse.storage.database import LoggingTransaction
 from synapse.storage.state import StateFilter
 from synapse.types import (
     DeviceListUpdates,
@@ -130,6 +131,7 @@ class JoinedSyncResult:
     unread_notifications: JsonDict
     unread_thread_notifications: JsonDict
     summary: Optional[JsonDict]
+    preview: Optional[JsonDict]
     unread_count: int
 
     def __bool__(self) -> bool:
@@ -141,6 +143,7 @@ class JoinedSyncResult:
             or self.state
             or self.ephemeral
             or self.account_data
+            or self.preview
             # nb the notification count does not, er, count: if there's nothing
             # else in the result, we don't need to send it.
         )
@@ -1305,6 +1308,30 @@ class SyncHandler:
                 sync_config.user.to_string(),
             )
 
+    async def beeper_preview_for_room_id(
+        self, room_id: str, to_key: RoomStreamToken
+    ) -> JsonDict:
+        # TODO(adamvy): consider reactions as last activity for DM rooms 
+        res = {}
+        def _beeper_preview_for_room_id(
+                txn: LoggingTransaction
+        ):
+            sql = """
+            SELECT event_id,origin_server_ts FROM events\
+            WHERE stream_ordering <= ? AND room_id = ? AND type = "m.room.message"
+            ORDER BY stream_ordering DESC
+            LIMIT 1
+            """
+
+            txn.execute(sql, (to_key.stream,room_id,))
+            for event_id, origin_server_ts in txn:
+                res["event_id"] = event_id
+                res["origin_server_ts"] = origin_server_ts
+
+        await self.store.db_pool.runInteraction("beeper_preview_for_room_id", _beeper_preview_for_room_id)
+
+        return res
+
     async def generate_sync_result(
         self,
         sync_config: SyncConfig,
@@ -2434,6 +2461,9 @@ class SyncHandler:
                     room_id, sync_config, batch, state, now_token
                 )
 
+            # TODO(adamvy): Only compute this if its changed?
+            preview: JsonDict = await self.beeper_preview_for_room_id(room_id, to_key=now_token.room_key)
+
             if room_builder.rtype == "joined":
                 unread_notifications: Dict[str, int] = {}
                 room_sync = JoinedSyncResult(
@@ -2446,6 +2476,7 @@ class SyncHandler:
                     unread_thread_notifications={},
                     summary=summary,
                     unread_count=0,
+                    preview=preview,
                 )
 
                 if room_sync or always_include:
